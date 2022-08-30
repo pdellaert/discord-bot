@@ -284,7 +284,6 @@ export const sticky: CommandDefinition = {
                 msg.reply({ embeds: [noChannelEmbed('Configure image URL', 'Mod Log')] });
             }
 
-            msg.channel.send({ embeds: [stickyMessageEmbed(stickyMessage.message)] });
             return msg.react('✅');
         }
 
