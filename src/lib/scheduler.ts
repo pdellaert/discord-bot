@@ -1,6 +1,7 @@
 import Agenda from 'agenda';
 import Logger from './logger';
-import { autoDisableSlowMode } from './scherdulerJobs/autoDisableSlowMode';
+import { autoDisableSlowMode } from './schedulerJobs/autoDisableSlowMode';
+import { scheduledCommandExecution } from './schedulerJobs/scheduledCommandExecution';
 
 let scheduler: Agenda;
 
@@ -17,6 +18,7 @@ export async function setupScheduler(name: string, url: string, callback = Logge
         });
         await scheduler.start();
         scheduler.define('autoDisableSlowMode', autoDisableSlowMode);
+        scheduler.define('scheduledCommandExecution', scheduledCommandExecution);
         Logger.info('Scheduler set up');
     } catch ({ name, message, stack }) {
         callback({ name, message, stack });
