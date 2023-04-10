@@ -5,7 +5,6 @@ import { PineconeClient, QueryRequest } from '@pinecone-database/pinecone';
 import { CommandDefinition, replyWithEmbed } from '../../lib/command';
 import { CommandCategory } from '../../constants';
 import { makeEmbed } from '../../lib/embed';
-import Logger from '../../lib/logger';
 
 const DOCS_BASE_URL = 'https://docs.flybywiresim.com';
 const OPENAI_MAX_ATTEMPTS = 5;
