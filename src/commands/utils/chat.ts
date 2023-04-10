@@ -48,7 +48,7 @@ export const chat: CommandDefinition = {
     category: CommandCategory.UTILS,
     executor: async (msg) => {
         const actualMessage = msg.content.startsWith('.chat ') ? msg.content : `.chat ${msg.content}`;
-        const searchWords = actualMessage.split(/\n|\r|\.|-|>/)
+        const searchWords = actualMessage.split(/\n|\r|>/)
             .at(1).split(/\s+/).slice(1);
 
         if (searchWords.length === 0) {
