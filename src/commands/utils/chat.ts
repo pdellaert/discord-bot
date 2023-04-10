@@ -8,11 +8,11 @@ import { makeEmbed } from '../../lib/embed';
 
 const DOCS_BASE_URL = 'https://docs.flybywiresim.com';
 const OPENAI_MAX_ATTEMPTS = 5;
-const OPENAI_MAX_CONTEXT_LENGTH = 2000;
+const OPENAI_MAX_CONTEXT_LENGTH = 2500;
 const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
 const OPENAI_QUERY_MODEL = 'text-davinci-003';
-const OPENAI_TEMPERATURE = 0.1;
-const PINECONE_NUMBER_OF_RESULTS = 5;
+const OPENAI_TEMPERATURE = 0.5;
+const PINECONE_NUMBER_OF_RESULTS = 3;
 const MIN_VECTOR_SCORE = 0.50;
 
 const PINCONE_API_KEY = process.env.PINECONE_API_KEY || '';
@@ -49,8 +49,7 @@ export const chat: CommandDefinition = {
     executor: async (msg) => {
         const actualMessage = msg.content.startsWith('.chat ') ? msg.content : `.chat ${msg.content}`;
         const searchWords = actualMessage.split(/\n|\r|\.|-|>/)
-            .at(1).split(/\s+/).slice(1)
-            .filter((word) => word.length > 2);
+            .at(1).split(/\s+/).slice(1);
 
         if (searchWords.length === 0) {
             return replyWithEmbed(msg, noQueryEmbed);
@@ -74,7 +73,8 @@ export const chat: CommandDefinition = {
             }
         }
 
-        const searchQuery = searchWords.join(' ');
+        let searchQuery = searchWords.join(' ');
+        searchQuery = searchQuery.indexOf('?') > 0 ? searchQuery : `${searchQuery}?`;
 
         const configuration = new Configuration({ apiKey: OPENAI_API_KEY });
         const openaiClient = new OpenAIApi(configuration);
@@ -140,7 +140,7 @@ export const chat: CommandDefinition = {
                 }
             }
         }
-        const averageScore = totalScore / countContexts;
+        const averageScore = countContexts > 0 ? totalScore / countContexts : 0;
         const queryText = ''.concat(
             'Answer the question based on the context below and you must include exactly one of the URLs as a reference at the end with the words "For more details: " unless the question can not be answered. If the question can not be answered based on the context, say "I don\'t know" and do not include a URL\n\n',
             'Context: ',
