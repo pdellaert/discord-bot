@@ -34,6 +34,7 @@ export enum Channels {
     VIDEOS = '739224482945826946',
     CHAT = '740722295009706034',
     SOUND = '748761999747579944',
+    CHATGPT_CHANNEL = '',
 }
 
 export enum Threads {

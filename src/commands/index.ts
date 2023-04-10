@@ -171,7 +171,8 @@ import { remoteEfb } from './support/remoteEfb';
 import { brakeCheck } from './support/brakeCheck';
 import { spad } from './general/spad';
 import { devLanguages } from './general/devLanguages';
-import { simbridgeDebug } from './support/simbridgeDebug'
+import { simbridgeDebug } from './support/simbridgeDebug';
+import { chat } from './utils/chat';
 
 const commands: BaseCommandDefinition[] = [
     typeCommand,
@@ -346,6 +347,7 @@ const commands: BaseCommandDefinition[] = [
     spad,
     devLanguages,
     simbridgeDebug,
+    chat,
 ];
 
 const commandsObject: { [k: string]: BaseCommandDefinition } = {};

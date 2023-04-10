@@ -15,6 +15,7 @@
   "dependencies": {
     "@elastic/ecs-winston-format": "^1.1.0",
     "@octokit/request": "^6.2.3",
+    "@pinecone-database/pinecone": "^0.0.12",
     "agenda": "^5.0.0",
     "bad-words": "^3.0.4",
     "cowsay": "^1.5.0",
@@ -25,6 +26,7 @@
     "moment": "^2.29.3",
     "mongoose": "^7.0.3",
     "node-fetch": "^2.6.7",
+    "openai": "^3.2.1",
     "winston": "^3.3.4"
   },
   "devDependencies": {

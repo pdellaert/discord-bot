@@ -6,6 +6,7 @@ import { makeEmbed } from '../lib/embed';
 import { client, DEBUG_MODE } from '../index';
 import { CommandDefinition, isExecutorCommand, isMessageCommand, hasRequiredPermissions, sendPermissionsEmbed } from '../lib/command';
 import { typeCommand } from '../lib/typeCommand';
+import { Channels } from '../constants';
 
 module.exports = {
     event: 'messageCreate',
@@ -23,6 +24,13 @@ module.exports = {
         if (isDm) {
             Logger.debug('Bailing because message is a DM.');
             return;
+        }
+
+        if (msg.channel.id === Channels.CHATGPT_CHANNEL && !msg.content.startsWith('.')) {
+            Logger.info('Running auto-response chat-gpt integration');
+            const usedCommand = 'chat';
+            const command = commands[usedCommand] as CommandDefinition;
+            await command.executor(msg, client);
         }
 
         if (msg.content.startsWith('.')) {
