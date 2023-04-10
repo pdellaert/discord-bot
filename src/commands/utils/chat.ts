@@ -5,6 +5,7 @@ import { PineconeClient, QueryRequest } from '@pinecone-database/pinecone';
 import { CommandDefinition, replyWithEmbed } from '../../lib/command';
 import { CommandCategory } from '../../constants';
 import { makeEmbed } from '../../lib/embed';
+import Logger from '../../lib/logger';
 
 const DOCS_BASE_URL = 'https://docs.flybywiresim.com';
 const OPENAI_MAX_ATTEMPTS = 5;
@@ -48,8 +49,7 @@ export const chat: CommandDefinition = {
     category: CommandCategory.UTILS,
     executor: async (msg) => {
         const actualMessage = msg.content.startsWith('.chat ') ? msg.content : `.chat ${msg.content}`;
-        const searchWords = actualMessage.split(/\n|\r|>/)
-            .at(1).split(/\s+/).slice(1);
+        const searchWords = actualMessage.split(/\s+/).slice(1);
 
         if (searchWords.length === 0) {
             return replyWithEmbed(msg, noQueryEmbed);
