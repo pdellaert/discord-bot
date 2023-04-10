@@ -13,7 +13,7 @@ const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
 const OPENAI_QUERY_MODEL = 'text-davinci-003';
 const OPENAI_TEMPERATURE = 0.5;
 const PINECONE_NUMBER_OF_RESULTS = 3;
-const MIN_VECTOR_SCORE = 0.50;
+const MIN_VECTOR_SCORE = 0.7;
 
 const PINCONE_API_KEY = process.env.PINECONE_API_KEY || '';
 const PINECONE_ENVIRONMENT = process.env.PINECONE_ENVIRONMENT || '';
