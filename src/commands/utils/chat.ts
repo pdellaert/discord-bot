@@ -5,21 +5,24 @@ import { PineconeClient, QueryRequest } from '@pinecone-database/pinecone';
 import { CommandDefinition, replyWithEmbed } from '../../lib/command';
 import { CommandCategory } from '../../constants';
 import { makeEmbed } from '../../lib/embed';
+import Logger from '../../lib/logger';
 
 const DOCS_BASE_URL = 'https://docs.flybywiresim.com';
 const OPENAI_MAX_ATTEMPTS = 5;
-const OPENAI_MAX_CONTEXT_LENGTH = 2500;
+const OPENAI_MAX_CONTEXT_LENGTH = 12000;
 const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
 const OPENAI_QUERY_MODEL = 'text-davinci-003';
 const OPENAI_TEMPERATURE = 0.5;
 const PINECONE_NUMBER_OF_RESULTS = 3;
-const MIN_VECTOR_SCORE = 0.7;
+const MIN_VECTOR_SCORE = 0.75;
 
 const PINCONE_API_KEY = process.env.PINECONE_API_KEY || '';
 const PINECONE_ENVIRONMENT = process.env.PINECONE_ENVIRONMENT || '';
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || '';
 const PINECONE_NAMESPACE = process.env.PINECONE_NAMESPACE || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+
+const NO_ANSWER = `I'm not sure, perhaps you can rephrase the question or find the answer in our documentation: <${DOCS_BASE_URL}>`;
 
 const noQueryEmbed = makeEmbed({
     title: 'FlyByWire Chat Bot - Documentation',
@@ -29,12 +32,6 @@ const noQueryEmbed = makeEmbed({
 const failedEmbed = makeEmbed({
     title: 'FlyByWire Chat Bot - Query failed',
     description: `The query failed, please check the full [FlyByWire Documentation here](${DOCS_BASE_URL}) and use the regular search functionality.`,
-});
-
-const noScoreHighEnoughEmbed = (score) => makeEmbed({
-    title: 'FlyByWire Chat Bot - No valid results found',
-    description: 'The query did not result in a context with high enough score to satisfy a good answer.',
-    footer: { text: `Minimum score needed: ${MIN_VECTOR_SCORE}, Highest score found: ${score}` },
 });
 
 interface pineconeMetadata {
@@ -119,7 +116,8 @@ export const chat: CommandDefinition = {
         const filteredMatches = pineconeResult.matches.filter((e) => e.score >= MIN_VECTOR_SCORE);
         if (filteredMatches.length === 0) {
             const highestScoreVector = pineconeResult.matches.reduce((prev, current) => (prev.score > current.score ? prev : current));
-            return replyWithEmbed(msg, noScoreHighEnoughEmbed(highestScoreVector.score));
+            Logger.debug(`No valid context found - highest score: ${highestScoreVector.score} - score needed: ${MIN_VECTOR_SCORE}`);
+            return msg.reply(NO_ANSWER);
         }
         const queryContextTexts = [];
         const queryContextUrls = [];
@@ -141,7 +139,11 @@ export const chat: CommandDefinition = {
         }
         const averageScore = countContexts > 0 ? totalScore / countContexts : 0;
         const queryText = ''.concat(
-            'Answer the question based on the context below and you must include exactly one of the URLs as a reference at the end with the words "For more details: " unless the question can not be answered. If the question can not be answered based on the context, say "I don\'t know" and do not include a URL\n\n',
+            'Instructions:\n',
+            '- Answer the question based on the context below\n',
+            '- If the question can be answered, you must include exactly one of the URLs as a reference using the words "For more details: "\n',
+            '- Any URL must be prepended with "<" and appended with ">"\n',
+            `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
             'Context: ',
             queryContextTexts.join('\n'),
             '\n---\n',
@@ -161,15 +163,11 @@ export const chat: CommandDefinition = {
             frequency_penalty: 0,
             max_tokens: 1024,
         });
-
         if (response.data.choices.length > 0) {
-            const queryEmbed = makeEmbed({
-                title: 'FlyByWire Chat Bot',
-                description: response.data.choices[0].text,
-                footer: { text: `Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts}` },
-            });
-            return replyWithEmbed(msg, queryEmbed);
+            Logger.debug(`Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts}`);
+            return msg.reply(response.data.choices[0].text);
         }
-        return replyWithEmbed(msg, noQueryEmbed);
+
+        return msg.reply(NO_ANSWER);
     },
 };
