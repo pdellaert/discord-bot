@@ -9,12 +9,12 @@ import Logger from '../../lib/logger';
 
 const DOCS_BASE_URL = 'https://docs.flybywiresim.com';
 const OPENAI_MAX_ATTEMPTS = 5;
-const OPENAI_MAX_CONTEXT_LENGTH = 12000;
+const OPENAI_MAX_CONTEXT_CHAR_LENGTH = 10000;
 const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
 const OPENAI_QUERY_MODEL = 'text-davinci-003';
 const OPENAI_TEMPERATURE = 0.5;
 const PINECONE_NUMBER_OF_RESULTS = 3;
-const MIN_VECTOR_SCORE = 0.75;
+const MIN_VECTOR_SCORE = 0.70;
 
 const PINCONE_API_KEY = process.env.PINECONE_API_KEY || '';
 const PINECONE_ENVIRONMENT = process.env.PINECONE_ENVIRONMENT || '';
@@ -128,7 +128,7 @@ export const chat: CommandDefinition = {
             if ('text' in match.metadata && 'url' in match.metadata) {
                 const matchMetadata = match.metadata as pineconeMetadata;
                 const { text, url } = matchMetadata;
-                if (typeof text === 'string' && typeof url === 'string' && contextLength + text.length <= OPENAI_MAX_CONTEXT_LENGTH) {
+                if (typeof text === 'string' && typeof url === 'string' && contextLength + text.length <= OPENAI_MAX_CONTEXT_CHAR_LENGTH) {
                     queryContextTexts.push(text);
                     queryContextUrls.push(url);
                     contextLength += text.length;
@@ -142,6 +142,7 @@ export const chat: CommandDefinition = {
             'Instructions:\n',
             '- Answer the question based on the context below\n',
             '- If the question can be answered, you must include exactly one of the URLs as a reference using the words "For more details: "\n',
+            '- The URL must be the one of the context entry with the most useful information\n',
             '- Any URL must be prepended with "<" and appended with ">"\n',
             `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
             'Context: ',
@@ -156,16 +157,20 @@ export const chat: CommandDefinition = {
             'Answer:',
         );
 
-        const response = await openaiClient.createCompletion({
-            model: OPENAI_QUERY_MODEL,
-            prompt: queryText,
-            temperature: OPENAI_TEMPERATURE,
-            frequency_penalty: 0,
-            max_tokens: 1024,
-        });
-        if (response.data.choices.length > 0) {
-            Logger.debug(`Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts}`);
-            return msg.reply(response.data.choices[0].text);
+        try {
+            const response = await openaiClient.createCompletion({
+                model: OPENAI_QUERY_MODEL,
+                prompt: queryText,
+                temperature: OPENAI_TEMPERATURE,
+                frequency_penalty: 0,
+                max_tokens: 1024,
+            });
+            if (response.data.choices.length > 0) {
+                Logger.debug(`Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts}`);
+                return msg.reply(response.data.choices[0].text);
+            }
+        } catch (e) {
+            Logger.debug(`Error: ${e}`);
         }
 
         return msg.reply(NO_ANSWER);
