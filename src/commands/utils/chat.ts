@@ -157,7 +157,6 @@ export const chat: CommandDefinition = {
             'Answer:',
         );
 
-        Logger.debug(`Query: "${queryText}`);
         try {
             const response = await openaiClient.createChatCompletion({
                 model: OPENAI_QUERY_MODEL,
