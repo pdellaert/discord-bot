@@ -12,8 +12,8 @@ const OPENAI_MAX_ATTEMPTS = 5;
 const OPENAI_MAX_CONTEXT_CHAR_LENGTH = 10000;
 const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
 const OPENAI_QUERY_MODEL = 'gpt-3.5-turbo';
-const OPENAI_TEMPERATURE = 0.5;
-const PINECONE_NUMBER_OF_RESULTS = 3;
+const OPENAI_TEMPERATURE = 0;
+const PINECONE_NUMBER_OF_RESULTS = 1;
 const MIN_VECTOR_SCORE = 0.70;
 
 const PINCONE_API_KEY = process.env.PINECONE_API_KEY || '';
@@ -141,15 +141,11 @@ export const chat: CommandDefinition = {
         const queryText = ''.concat(
             'Instructions:\n',
             '- Answer the question based on the context below\n',
-            '- If the question can be answered, you must include exactly one of the URLs as a reference using the words "For more details: "\n',
-            '- The URL must be the one of the context entry with the most useful information\n',
+            `- If the question can be answered, you must include the URL: ${queryContextUrls.join(' ')} \n`,
             '- Any URL must be prepended with "<" and appended with ">"\n',
             `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
             'Context:\n',
             queryContextTexts.join('\n'),
-            '\n---\n',
-            'URLs:\n',
-            queryContextUrls.join('\n'),
             '\n---\n',
             'Question: ',
             searchQuery,
