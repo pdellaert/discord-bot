@@ -2,7 +2,7 @@ import Filter from 'bad-words';
 import { Colors } from 'discord.js';
 import { Configuration, OpenAIApi } from 'openai';
 import { PineconeClient, QueryRequest } from '@pinecone-database/pinecone';
-import { CommandDefinition, replyWithEmbed } from '../../lib/command';
+import { CommandDefinition, replyWithEmbed, replyWithMsg } from '../../lib/command';
 import { CommandCategory } from '../../constants';
 import { makeEmbed } from '../../lib/embed';
 import Logger from '../../lib/logger';
@@ -13,7 +13,7 @@ const OPENAI_MAX_CONTEXT_CHAR_LENGTH = 10000;
 const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
 const OPENAI_QUERY_MODEL = 'gpt-3.5-turbo';
 const OPENAI_TEMPERATURE = 0;
-const PINECONE_NUMBER_OF_RESULTS = 3;
+const PINECONE_NUMBER_OF_RESULTS = 1;
 const MIN_VECTOR_SCORE = 0.70;
 
 const PINCONE_API_KEY = process.env.PINECONE_API_KEY || '';
@@ -81,102 +81,122 @@ export const chat: CommandDefinition = {
             environment: PINECONE_ENVIRONMENT,
         });
         const pineconeIndex = pineconeClient.Index(PINECONE_INDEX_NAME);
-
-        let embeddingResult;
-        let attempt = 0;
-        let done = false;
-        while (!done && attempt <= OPENAI_MAX_ATTEMPTS) {
-            if (attempt > 0) {
-                // eslint-disable-next-line no-await-in-loop
-                await new Promise((f) => setTimeout(f, 2000));
-            }
-            try {
-                // eslint-disable-next-line no-await-in-loop
-                embeddingResult = await openaiClient.createEmbedding({
-                    model: OPENAI_EMBEDDING_MODEL,
-                    input: [searchQuery],
-                });
-                done = true;
-            } catch {
-                continue;
-            } finally {
-                attempt += 1;
-            }
-        }
-        if (!done || !embeddingResult.data.data[0].embedding) {
-            return replyWithEmbed(msg, failedEmbed);
-        }
-        const pineconeQueryRequest: QueryRequest = {
-            topK: PINECONE_NUMBER_OF_RESULTS,
-            vector: embeddingResult.data.data[0].embedding,
-            namespace: PINECONE_NAMESPACE,
-            includeMetadata: true,
-        };
-        const pineconeResult = await pineconeIndex.query({ queryRequest: pineconeQueryRequest });
-        const filteredMatches = pineconeResult.matches.filter((e) => e.score >= MIN_VECTOR_SCORE);
-        if (filteredMatches.length === 0) {
-            const highestScoreVector = pineconeResult.matches.reduce((prev, current) => (prev.score > current.score ? prev : current));
-            Logger.debug(`No valid context found - highest score: ${highestScoreVector.score} - score needed: ${MIN_VECTOR_SCORE}`);
-            return msg.reply(NO_ANSWER);
-        }
-        const queryContextTexts = [];
-        const queryContextUrls = [];
-        let contextLength = 0;
-        let countContexts = 0;
-        let totalScore = 0;
-        for (const match of filteredMatches) {
-            if ('text' in match.metadata && 'url' in match.metadata) {
-                const matchMetadata = match.metadata as pineconeMetadata;
-                const { text, url } = matchMetadata;
-                if (typeof text === 'string' && typeof url === 'string' && contextLength + text.length <= OPENAI_MAX_CONTEXT_CHAR_LENGTH) {
-                    queryContextTexts.push(text);
-                    queryContextUrls.push(url);
-                    contextLength += text.length;
-                    countContexts += 1;
-                    totalScore += match.score;
+        return msg.reply('Thinking... Please stand by.').then(async (postedMessage) => {
+            let embeddingResult;
+            let attempt = 0;
+            let done = false;
+            while (!done && attempt <= OPENAI_MAX_ATTEMPTS) {
+                if (attempt > 0) {
+                    // eslint-disable-next-line no-await-in-loop
+                    await new Promise((f) => setTimeout(f, 2000));
+                }
+                try {
+                    // eslint-disable-next-line no-await-in-loop
+                    embeddingResult = await openaiClient.createEmbedding({
+                        model: OPENAI_EMBEDDING_MODEL,
+                        input: [searchQuery],
+                    });
+                    done = true;
+                } catch {
+                    continue;
+                } finally {
+                    attempt += 1;
                 }
             }
-        }
-        const averageScore = countContexts > 0 ? totalScore / countContexts : 0;
-        const queryText = ''.concat(
-            'Instructions:\n',
-            '- Answer the question based on the context below\n',
-            `- If the question can be answered, you must include the URL: ${queryContextUrls.join(' ')} \n`,
-            '- Any URL must be prepended with "<" and appended with ">"\n',
-            `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
-            'Context:\n',
-            queryContextTexts.join('\n'),
-            '\n---\n',
-            'Question: ',
-            searchQuery,
-            '\n',
-            'Answer:',
-        );
-
-        try {
-            const response = await openaiClient.createChatCompletion({
-                model: OPENAI_QUERY_MODEL,
-                temperature: OPENAI_TEMPERATURE,
-                max_tokens: 1000,
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are the FlyByWire Discord bot who answers a question based on the provided contexts and user question.',
-                    },
-                    {
-                        role: 'user',
-                        content: queryText,
-                    },
-                ],
-            });
-            if (response.data.choices.length > 0) {
-                Logger.debug(`Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts}`);
-                return msg.reply(response.data.choices[0].message.content);
+            if (!done || !embeddingResult.data.data[0].embedding) {
+                try {
+                    await postedMessage.delete();
+                } catch (e) {
+                    Logger.debug(`Error: ${e}`);
+                }
+                return replyWithEmbed(msg, failedEmbed);
             }
-        } catch (e) {
-            Logger.debug(`Error: ${e}`);
-        }
+            const pineconeQueryRequest: QueryRequest = {
+                topK: PINECONE_NUMBER_OF_RESULTS,
+                vector: embeddingResult.data.data[0].embedding,
+                namespace: PINECONE_NAMESPACE,
+                includeMetadata: true,
+            };
+            const pineconeResult = await pineconeIndex.query({ queryRequest: pineconeQueryRequest });
+            const filteredMatches = pineconeResult.matches.filter((e) => e.score >= MIN_VECTOR_SCORE);
+            if (filteredMatches.length === 0) {
+                const highestScoreVector = pineconeResult.matches.reduce((prev, current) => (prev.score > current.score ? prev : current));
+                Logger.debug(`No valid context found - highest score: ${highestScoreVector.score} - score needed: ${MIN_VECTOR_SCORE}`);
+                try {
+                    await postedMessage.delete();
+                } catch (e) {
+                    Logger.debug(`Error: ${e}`);
+                }
+                return msg.reply(NO_ANSWER);
+            }
+            const queryContextTexts = [];
+            const queryContextUrls = [];
+            let contextLength = 0;
+            let countContexts = 0;
+            let totalScore = 0;
+            for (const match of filteredMatches) {
+                if ('text' in match.metadata && 'url' in match.metadata) {
+                    const matchMetadata = match.metadata as pineconeMetadata;
+                    const { text, url } = matchMetadata;
+                    if (typeof text === 'string' && typeof url === 'string' && contextLength + text.length <= OPENAI_MAX_CONTEXT_CHAR_LENGTH) {
+                        queryContextTexts.push(text);
+                        queryContextUrls.push(url);
+                        contextLength += text.length;
+                        countContexts += 1;
+                        totalScore += match.score;
+                    }
+                }
+            }
+            const averageScore = countContexts > 0 ? totalScore / countContexts : 0;
+            const queryText = ''.concat(
+                'Instructions:\n',
+                '- Answer the question based on the context below and include all relevant information\n',
+                `- If the question can be answered, you might include one of these URLs: ${queryContextUrls.join(' ')} \n`,
+                '- Any URL must be prepended with "<" and appended with ">"\n',
+                `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
+                'Context:\n',
+                queryContextTexts.join('\n'),
+                '\n---\n',
+                'Question: ',
+                searchQuery,
+                '\n',
+                'Answer:',
+            );
 
-        return msg.reply(NO_ANSWER);
+            try {
+                const response = await openaiClient.createChatCompletion({
+                    model: OPENAI_QUERY_MODEL,
+                    temperature: OPENAI_TEMPERATURE,
+                    max_tokens: 1000,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are the FlyByWire Discord bot who answers a question based on the provided contexts and user question.',
+                        },
+                        {
+                            role: 'user',
+                            content: queryText,
+                        },
+                    ],
+                });
+                if (response.data.choices.length > 0) {
+                    Logger.debug(`Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts}`);
+                    try {
+                        await postedMessage.delete();
+                    } catch (e) {
+                        Logger.debug(`Error: ${e}`);
+                    }
+                    return replyWithMsg(msg, response.data.choices[0].message.content);
+                }
+            } catch (e) {
+                Logger.debug(`Error: ${e}`);
+            }
+            try {
+                await postedMessage.delete();
+            } catch (e) {
+                Logger.debug(`Error: ${e}`);
+            }
+            return msg.reply(NO_ANSWER);
+        }).catch(() => msg.reply(NO_ANSWER));
     },
 };
