@@ -1,6 +1,6 @@
 import Filter from 'bad-words';
 import { Colors } from 'discord.js';
-import { Configuration, OpenAIApi } from 'openai';
+import { ChatCompletionRequestMessage, Configuration, OpenAIApi } from 'openai';
 import { PineconeClient, QueryRequest } from '@pinecone-database/pinecone';
 import { CommandDefinition, replyWithEmbed, replyWithMsg } from '../../lib/command';
 import { CommandCategory } from '../../constants';
@@ -9,12 +9,12 @@ import Logger from '../../lib/logger';
 
 const DOCS_BASE_URL = 'https://docs.flybywiresim.com';
 const OPENAI_MAX_ATTEMPTS = 5;
-const OPENAI_MAX_CONTEXT_CHAR_LENGTH = 10000;
+const OPENAI_MAX_CONTEXT_CHAR_LENGTH = 16000;
 const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
-const OPENAI_QUERY_MODEL = 'gpt-3.5-turbo';
+const OPENAI_QUERY_MODEL = 'gpt-4';
 const OPENAI_TEMPERATURE = 0;
 const PINECONE_NUMBER_OF_RESULTS = 1;
-const MIN_VECTOR_SCORE = 0.70;
+const MIN_VECTOR_SCORE = 0.75;
 
 const PINCONE_API_KEY = process.env.PINECONE_API_KEY || '';
 const PINECONE_ENVIRONMENT = process.env.PINECONE_ENVIRONMENT || '';
@@ -81,7 +81,8 @@ export const chat: CommandDefinition = {
             environment: PINECONE_ENVIRONMENT,
         });
         const pineconeIndex = pineconeClient.Index(PINECONE_INDEX_NAME);
-        return msg.reply('Thinking... Please stand by.').then(async (postedMessage) => {
+        return msg.reply('Processing... Please stand by.').then(async (postedMessage) => {
+            msg.channel.sendTyping();
             let embeddingResult;
             let attempt = 0;
             let done = false;
@@ -129,58 +130,56 @@ export const chat: CommandDefinition = {
                 }
                 return msg.reply(NO_ANSWER);
             }
-            const queryContextTexts = [];
-            const queryContextUrls = [];
             let contextLength = 0;
             let countContexts = 0;
             let totalScore = 0;
+            const queryMessages: ChatCompletionRequestMessage[] = [
+                {
+                    role: 'system',
+                    content: ''.concat(
+                        'You are the FlyByWire Discord bot who answers a question based on the provided contexts and user question.',
+                        'Instructions:\n',
+                        '- Answer the question based on the context below and include all relevant information, consider the scores of the contexts when answering\n',
+                        '- If the question can be answered, you should include the URL of the most used Context. Do not mention you got information from a Context.\n',
+                        '- Any URL must be prepended with "<" and appended with ">"\n',
+                        `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
+                    ),
+                },
+            ];
             for (const match of filteredMatches) {
                 if ('text' in match.metadata && 'url' in match.metadata) {
                     const matchMetadata = match.metadata as pineconeMetadata;
                     const { text, url } = matchMetadata;
                     if (typeof text === 'string' && typeof url === 'string' && contextLength + text.length <= OPENAI_MAX_CONTEXT_CHAR_LENGTH) {
-                        queryContextTexts.push(text);
-                        queryContextUrls.push(url);
-                        contextLength += text.length;
                         countContexts += 1;
+                        queryMessages.push({
+                            role: 'user',
+                            content: `Context ${countContexts}:\n`.concat(
+                                `URL: ${url}\n`,
+                                `Score: ${match.score}\n`,
+                                `Content: ${text}`,
+                            ),
+                        });
+                        contextLength += text.length;
                         totalScore += match.score;
                     }
                 }
             }
             const averageScore = countContexts > 0 ? totalScore / countContexts : 0;
-            const queryText = ''.concat(
-                'Instructions:\n',
-                '- Answer the question based on the context below and include all relevant information\n',
-                `- If the question can be answered, you might include one of these URLs: ${queryContextUrls.join(' ')} \n`,
-                '- Any URL must be prepended with "<" and appended with ">"\n',
-                `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
-                'Context:\n',
-                queryContextTexts.join('\n'),
-                '\n---\n',
-                'Question: ',
-                searchQuery,
-                '\n',
-                'Answer:',
-            );
 
             try {
                 const response = await openaiClient.createChatCompletion({
                     model: OPENAI_QUERY_MODEL,
                     temperature: OPENAI_TEMPERATURE,
-                    max_tokens: 1000,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are the FlyByWire Discord bot who answers a question based on the provided contexts and user question.',
-                        },
-                        {
-                            role: 'user',
-                            content: queryText,
-                        },
-                    ],
+                    max_tokens: 500,
+                    messages: queryMessages,
                 });
                 if (response.data.choices.length > 0) {
-                    Logger.debug(`Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts}`);
+                    const { usage } = response.data;
+                    // eslint-disable-next-line camelcase
+                    const { completion_tokens, prompt_tokens, total_tokens } = usage;
+                    // eslint-disable-next-line camelcase
+                    Logger.debug(`Average confidence: ${Math.round(averageScore * 1000) / 1000} - Number of Contexts: ${countContexts} - Prompt tokens: ${prompt_tokens} - Completion tokens: ${completion_tokens} - Total tokens: ${total_tokens}`);
                     try {
                         await postedMessage.delete();
                     } catch (e) {
