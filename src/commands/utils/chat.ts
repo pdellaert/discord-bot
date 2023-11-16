@@ -54,13 +54,15 @@ export const chat: CommandDefinition = {
         // Safety to prevent users from sending their own links in bot output.
         for (const searchWord of searchWords) {
             try {
-                const _ = new URL(searchWord);
-                const URLEmbed = makeEmbed({
-                    title: 'FlyByWire Documentation | Error',
-                    description: 'Providing URLs to the Documentation search command is not allowed.',
-                    color: Colors.Red,
-                });
-                return msg.reply({ embeds: [URLEmbed] });
+                const url = new URL(searchWord);
+                if (url.protocol.length < 5) {
+                    const URLEmbed = makeEmbed({
+                        title: 'FlyByWire Documentation | Error',
+                        description: 'Providing URLs to the Documentation search command is not allowed.',
+                        color: Colors.Red,
+                    });
+                    return msg.reply({ embeds: [URLEmbed] });
+                }
             } catch (_) { /**/ }
 
             const filter = new Filter();
