@@ -9,9 +9,9 @@ import Logger from '../../lib/logger';
 
 const DOCS_BASE_URL = 'https://docs.flybywiresim.com';
 const OPENAI_MAX_ATTEMPTS = 5;
-const OPENAI_MAX_CONTEXT_CHAR_LENGTH = 16000;
+const OPENAI_MAX_CONTEXT_CHAR_LENGTH = 32000;
 const OPENAI_EMBEDDING_MODEL = 'text-embedding-ada-002';
-const OPENAI_QUERY_MODEL = 'gpt-4';
+const OPENAI_QUERY_MODEL = 'gpt-4-1106-preview';
 const OPENAI_TEMPERATURE = 0;
 const PINECONE_NUMBER_OF_RESULTS = 3;
 const MIN_VECTOR_SCORE = 0.75;
@@ -165,6 +165,10 @@ export const chat: CommandDefinition = {
                     }
                 }
             }
+            queryMessages.push({
+                role: 'user',
+                content: `Question: ${searchQuery}`,
+            });
             const averageScore = countContexts > 0 ? totalScore / countContexts : 0;
 
             try {
