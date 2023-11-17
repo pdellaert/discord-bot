@@ -55,10 +55,10 @@ export const chat: CommandDefinition = {
         for (const searchWord of searchWords) {
             try {
                 const url = new URL(searchWord);
-                if (url.protocol.length < 5) {
+                if (url.protocol.toLowerCase().startsWith('http')) {
                     const URLEmbed = makeEmbed({
                         title: 'FlyByWire Documentation | Error',
-                        description: 'Providing URLs to the Documentation search command is not allowed.',
+                        description: 'Providing URLs is not allowed.',
                         color: Colors.Red,
                     });
                     return msg.reply({ embeds: [URLEmbed] });
@@ -139,12 +139,12 @@ export const chat: CommandDefinition = {
                 {
                     role: 'system',
                     content: ''.concat(
-                        'You are the FlyByWire Discord bot who answers a question based on the provided contexts and user question.',
+                        'You are the FlyByWire Discord bot who answers a question based on the provided contexts and user question.\n',
                         'Instructions:\n',
-                        '- Answer the question based on the context below and include all relevant information, consider the scores of the contexts when answering\n',
+                        '- Answer the question based on the context below and include all relevant information, consider the scores of the contexts when answering.\n',
                         '- If the question can be answered, you should include the URL of the most used Context. Do not mention you got information from a Context.\n',
-                        '- Any URL must be prepended with "<" and appended with ">"\n',
-                        `- If the question can not be answered, you must answer with exactly "${NO_ANSWER}"\n`,
+                        '- Any URL must be prepended with "<" and appended with ">".\n',
+                        `- As a backup you can use information from ${DOCS_BASE_URL}, but you must remain in the context of FlyByWire.\n`,
                     ),
                 },
             ];
